@@ -1,0 +1,113 @@
+---
+driver_plugin: vagrant
+driver_config:
+  require_chef_omnibus: '12.16'
+  customize:
+    cpus: 1
+    memory: 512
+  ssh:
+    insert_key: false
+#  network:
+#    - ["private_network", {ip: "192.0.2.2", netmask: "255.255.255.255"}]
+provisioner:
+  name: chef_zero
+
+platforms:
+- name: ubuntu-14.04
+  run_list: ['recipe[fake::create_secrets]','recipe[apt]']
+  driver_config:
+    box: bento/ubuntu-14.04
+- name: ubuntu-12.04
+  run_list: ['recipe[fake::create_secrets]','recipe[apt]']
+  driver_config:
+    box: bento/ubuntu-12.04
+- name: centos-6.8
+  run_list: ['recipe[fake::create_secrets]','recipe[yum-epel]']
+  driver_config:
+    box: bento/centos-6.8 
+- name: centos-7.2
+  run_list: ['recipe[fake::create_secrets]','recipe[yum-epel]']
+  driver_config:
+    box: bento/centos-7.2
+# - name: rhel-6.5
+#   run_list: ['recipe[fake::create_secrets]','recipe[yum-epel]', 'recipe[rhsm]']
+#   attributes:
+#     rhsm:
+#       username: <%= ENV['RHSM_USERNAME'] %>
+#       password: <%= ENV['RHSM_PASSWORD'] %>
+#       additional_repos: ['rhel-6-server-optional-rpms']
+#   driver_config:
+#     box: local-rhel-6.5
+#     box_url: file://<%= File.expand_path('~') %>/opscode_rhel-6.5_chef-provisionerless.box
+# - name: rhel-7.0
+#   run_list: ['recipe[yum-epel]', 'recipe[rhsm]', 'recipe[fake::mysql_repo]', 'recipe[fake::wget_cacert]']
+#   attributes:
+#     rhsm:
+#       username: <%= ENV['RHSM_USERNAME'] %>
+#       password: <%= ENV['RHSM_PASSWORD'] %>
+#       additional_repos: ['rhel-7-server-optional-rpms']
+#   driver_config:
+#     box: local-rhel-7.0
+#     box_url: file://<%= File.expand_path('~') %>/opscode_rhel-7.0_chef-provisionerless.box
+busser:
+  sudo: true
+
+suites:
+# This test sets up a simple PHP application, verifies the functionality of the application, and ensures that
+# the required application packages are installed.
+#
+- name: default
+  run_list:
+  - recipe[rs-application_php::default]
+  - recipe[rs-application_php::tags]
+  - recipe[rs-application_php::collectd]
+  - recipe[curl::default]
+  attributes:
+    apt:
+      compile_time_update: true
+    rightscale:
+      instance_uuid: '01-ABCDEFGH0123'
+    rs-base:
+      collectd_server: 'tss-4.rightscale.com'
+    cloud:
+      provider: vagrant
+      public_ips: ['33.33.33.10']
+      private_ips: ['10.0.2.15']
+    rs-application_php:
+      packages: ['sl']
+      application_name: example
+      vhost_path: www.example.com
+      bind_network_interface: 'public'
+      migration_command: echo migration is being performed >> /usr/local/www/sites/example/migration
+      scm:
+        revision: unified_php
+        repository: git://github.com/rightscale/examples.git
+
+# This test sets up a mysql database server locally, tests the database connectivity from the application to the
+# database server, and ensures that the required database client packages are installed.
+#
+- name: database_mysql
+  run_list:
+  - recipe[fake::database_mysql]
+  - recipe[rs-application_php::default]
+  - recipe[curl::default]
+  attributes:
+    # The mysql cookbook requires these attributes to be set for running mysql server in a
+    # vagrant environment
+    apt:
+      compile_time_update: true
+    cloud:
+      provider: vagrant
+      public_ips: ['33.33.33.10']
+      private_ips: ['10.0.2.15']
+    rs-application_php:
+      application_name: example
+      write_settings_file: true
+      scm:
+        revision: unified_php
+        repository: git://github.com/rightscale/examples.git
+      database:
+        host: localhost
+        user: app_user
+        password: apppass
+        schema: app_test
